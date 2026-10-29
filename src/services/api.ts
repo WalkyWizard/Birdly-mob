@@ -1,4 +1,3 @@
-﻿import * as FileSystem from 'expo-file-system'
 import type {
   ImageAnalysisResponse,
   AudioAnalysisResponse,
@@ -8,65 +7,120 @@ import type {
   CompareResponse
 } from '../types'
 
-const API_HOST = process.env.EXPO_PUBLIC_API_URL || ['http:', '', '192.168.0.107:8000', 'api'].join('/')
+const API_HOST = process.env.EXPO_PUBLIC_API_URL || ['http:', '', '192.168.0.105:8000', 'api'].join('/')
 
-async function createBlobFromUri(fileUri: string, mimeType: string): Promise<Blob> {
-  try {
-    const res = await fetch(fileUri)
-    return await res.blob()
-  } catch {
-    const base64 = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64
-    })
-    const binary = atob(base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
+const REQUEST_TIMEOUT = 30000
+const NETWORK_ERROR_MSG = 'Сервер недоступний. Перевірте, чи телефон підключений до тієї ж Wi-Fi мережі, що й комп\'ютер'
+
+function getMimeType(fileName: string, fallback: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase()
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    wav: 'audio/wav',
+    flac: 'audio/flac',
+    ogg: 'audio/ogg',
+    mp3: 'audio/mpeg',
+    m4a: 'audio/mp4',
+    aac: 'audio/aac'
+  }
+  return (ext && map[ext]) || fallback
+}
+
+function uploadViaXHR<T>(
+  url: string,
+  files: { field: string; uri: string; name: string; type: string }[]
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      xhr.abort()
+      reject(new Error(NETWORK_ERROR_MSG))
+    }, REQUEST_TIMEOUT)
+
+    xhr.open('POST', url)
+    xhr.setRequestHeader('Accept', 'application/json')
+
+    xhr.onload = () => {
+      if (timedOut) return
+      clearTimeout(timer)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
+          resolve(xhr.responseText as unknown as T)
+        }
+      } else {
+        let detail = ''
+        try {
+          const parsed = JSON.parse(xhr.responseText)
+          detail = parsed.detail || ''
+        } catch {
+          detail = xhr.responseText
+        }
+        reject(new Error(detail || `Помилка сервера (${xhr.status})`))
+      }
     }
-    return new Blob([bytes], { type: mimeType })
+
+    xhr.onerror = () => {
+      if (timedOut) return
+      clearTimeout(timer)
+      reject(new Error(NETWORK_ERROR_MSG))
+    }
+
+    xhr.ontimeout = () => {
+      if (timedOut) return
+      clearTimeout(timer)
+      reject(new Error(NETWORK_ERROR_MSG))
+    }
+
+    const formData = new FormData()
+    for (const f of files) {
+      formData.append(f.field, {
+        uri: f.uri,
+        name: f.name,
+        type: f.type
+      } as unknown as Blob)
+    }
+
+    xhr.send(formData)
+  })
+}
+
+async function apiFetch(url: string, init?: RequestInit): Promise<Response> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(NETWORK_ERROR_MSG)), REQUEST_TIMEOUT)
+  })
+  try {
+    const response = await Promise.race([
+      fetch(url, init),
+      timeoutPromise
+    ])
+    return response
+  } catch (err: unknown) {
+    if (err instanceof TypeError) {
+      throw new Error(NETWORK_ERROR_MSG)
+    }
+    throw err
   }
 }
 
 export async function analyzeImage(fileUri: string, fileName: string): Promise<ImageAnalysisResponse> {
-  const blob = await createBlobFromUri(fileUri, 'image/jpeg')
-  const formData = new FormData()
-  formData.append('file', blob, fileName || 'photo.jpg')
-
-  const response = await fetch(`${API_HOST}/analyze/image`, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      'Accept': 'application/json'
-    }
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || 'Помилка аналізу зображення')
-  }
-
-  return response.json()
+  const mime = getMimeType(fileName || 'photo.jpg', 'image/jpeg')
+  return uploadViaXHR<ImageAnalysisResponse>(`${API_HOST}/analyze/image`, [
+    { field: 'file', uri: fileUri, name: fileName || 'photo.jpg', type: mime }
+  ])
 }
 
 export async function analyzeAudio(fileUri: string, fileName: string): Promise<AudioAnalysisResponse> {
-  const blob = await createBlobFromUri(fileUri, 'audio/wav')
-  const formData = new FormData()
-  formData.append('file', blob, fileName || 'sound.wav')
-
-  const response = await fetch(`${API_HOST}/analyze/audio`, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      'Accept': 'application/json'
-    }
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || 'Помилка аналізу аудіо')
-  }
-
-  return response.json()
+  const mime = getMimeType(fileName || 'sound.wav', 'audio/wav')
+  return uploadViaXHR<AudioAnalysisResponse>(`${API_HOST}/analyze/audio`, [
+    { field: 'file', uri: fileUri, name: fileName || 'sound.wav', type: mime }
+  ])
 }
 
 export async function analyzeMultimodal(
@@ -75,26 +129,12 @@ export async function analyzeMultimodal(
   audioUri: string,
   audioName: string
 ): Promise<MultimodalAnalysisResponse> {
-  const imageBlob = await createBlobFromUri(imageUri, 'image/jpeg')
-  const audioBlob = await createBlobFromUri(audioUri, 'audio/wav')
-  const formData = new FormData()
-  formData.append('image_file', imageBlob, imageName || 'photo.jpg')
-  formData.append('audio_file', audioBlob, audioName || 'sound.wav')
-
-  const response = await fetch(`${API_HOST}/analyze/multimodal`, {
-    method: 'POST',
-    body: formData,
-    headers: {
-      'Accept': 'application/json'
-    }
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || 'Помилка мультимодального аналізу')
-  }
-
-  return response.json()
+  const imgMime = getMimeType(imageName || 'photo.jpg', 'image/jpeg')
+  const audMime = getMimeType(audioName || 'sound.wav', 'audio/wav')
+  return uploadViaXHR<MultimodalAnalysisResponse>(`${API_HOST}/analyze/multimodal`, [
+    { field: 'image_file', uri: imageUri, name: imageName || 'photo.jpg', type: imgMime },
+    { field: 'audio_file', uri: audioUri, name: audioName || 'sound.wav', type: audMime }
+  ])
 }
 
 export async function getHistory(
@@ -114,7 +154,7 @@ export async function getHistory(
   }
 
   const queryStr = params.toString() ? `?${params.toString()}` : ''
-  const response = await fetch(`${API_HOST}/history${queryStr}`, {
+  const response = await apiFetch(`${API_HOST}/history${queryStr}`, {
     headers: {
       'Accept': 'application/json'
     }
@@ -128,7 +168,7 @@ export async function getHistory(
 }
 
 export async function deleteHistoryRecord(id: number): Promise<{ success: boolean; deleted_id: number }> {
-  const response = await fetch(`${API_HOST}/history/${id}`, {
+  const response = await apiFetch(`${API_HOST}/history/${id}`, {
     method: 'DELETE',
     headers: {
       'Accept': 'application/json'
@@ -143,7 +183,7 @@ export async function deleteHistoryRecord(id: number): Promise<{ success: boolea
 }
 
 export async function getBirdsMetadata(): Promise<BirdsMetadata> {
-  const response = await fetch(`${API_HOST}/birds`, {
+  const response = await apiFetch(`${API_HOST}/birds`, {
     headers: {
       'Accept': 'application/json'
     }
@@ -159,7 +199,7 @@ export async function getBirdsMetadata(): Promise<BirdsMetadata> {
 export async function compareBirds(speciesA: string, speciesB: string): Promise<CompareResponse> {
   const encA = encodeURIComponent(speciesA)
   const encB = encodeURIComponent(speciesB)
-  const response = await fetch(`${API_HOST}/birds/compare/${encA}/${encB}`, {
+  const response = await apiFetch(`${API_HOST}/birds/compare/${encA}/${encB}`, {
     headers: {
       'Accept': 'application/json'
     }

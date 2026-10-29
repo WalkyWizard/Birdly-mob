@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native'
 
 interface TabBarProps {
@@ -40,7 +40,7 @@ export function TabBar({ activeTab, setActiveTab }: TabBarProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#24292f',
+    backgroundColor: '#cf222e',
     paddingVertical: 6,
     paddingHorizontal: 8
   },
@@ -58,12 +58,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff'
   },
   tabText: {
-    color: '#d0d7de',
+    color: '#ffffff',
     fontSize: 13,
-    fontWeight: '500'
+    fontWeight: '500',
+    opacity: 0.9
   },
   activeTabText: {
-    color: '#24292f',
+    color: '#cf222e',
     fontWeight: '600'
   }
 })

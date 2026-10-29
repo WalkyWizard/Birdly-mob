@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
@@ -41,7 +41,7 @@ export function MultimodalView() {
     setError(null)
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: [['audio', '*'].join('/')],
+        type: ['*/*'],
         copyToCacheDirectory: true
       })
 
@@ -51,8 +51,12 @@ export function MultimodalView() {
         setAudioName(asset.name || 'sound.wav')
         setResult(null)
       }
-    } catch {
-      setError('Помилка вибору аудіофайлу')
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Помилка вибору аудіофайлу')
+      }
     }
   }
 
@@ -112,7 +116,7 @@ export function MultimodalView() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>2. Аудіозапис співу (WAV, FLAC, OGG):</Text>
+          <Text style={styles.label}>2. Аудіозапис співу (WAV, MP3, M4A, FLAC, OGG):</Text>
           <TouchableOpacity style={styles.btnSecondary} onPress={handlePickAudio} activeOpacity={0.7}>
             <Text style={styles.btnSecondaryText}>{audioUri ? 'Змінити аудіо' : 'Обрати аудіофайл'}</Text>
           </TouchableOpacity>

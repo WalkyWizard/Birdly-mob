@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 
 export function Header() {
@@ -11,7 +11,7 @@ export function Header() {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: '#24292f',
+    backgroundColor: '#cf222e',
     paddingHorizontal: 16,
     paddingVertical: 14,
     alignItems: 'center',

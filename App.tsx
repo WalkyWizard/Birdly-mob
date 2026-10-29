@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { SafeAreaView, ScrollView, StyleSheet } from 'react-native'
 import { StatusBar } from 'expo-status-bar'
 import { Header } from './src/components/Header'
@@ -31,7 +31,7 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#24292f'
+    backgroundColor: '#cf222e'
   },
   scroll: {
     flex: 1,

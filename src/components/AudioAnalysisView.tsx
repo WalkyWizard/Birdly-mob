@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
 import * as DocumentPicker from 'expo-document-picker'
 import { analyzeAudio } from '../services/api'
@@ -16,7 +16,7 @@ export function AudioAnalysisView() {
     setError(null)
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: [['audio', '*'].join('/')],
+        type: ['*/*'],
         copyToCacheDirectory: true
       })
 
@@ -26,8 +26,12 @@ export function AudioAnalysisView() {
         setAudioName(asset.name || 'sound.wav')
         setResult(null)
       }
-    } catch {
-      setError('Помилка вибору аудіофайлу')
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Помилка вибору аудіофайлу')
+      }
     }
   }
 

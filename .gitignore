@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 .expo/
 dist/
 web-build/
@@ -16,7 +16,10 @@ yarn-debug.*
 yarn-error.*
 .DS_Store
 *.pem
-.env*.local
+.env
+.env.local
+.env.*.local
+!.env.example
 *.tsbuildinfo
 /ios
 /android

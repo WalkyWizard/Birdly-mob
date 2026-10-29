@@ -1,4 +1,5 @@
-﻿import type {
+﻿import * as FileSystem from 'expo-file-system'
+import type {
   ImageAnalysisResponse,
   AudioAnalysisResponse,
   MultimodalAnalysisResponse,
@@ -9,13 +10,27 @@
 
 const API_HOST = process.env.EXPO_PUBLIC_API_URL || ['http:', '', '192.168.0.107:8000', 'api'].join('/')
 
+async function createBlobFromUri(fileUri: string, mimeType: string): Promise<Blob> {
+  try {
+    const res = await fetch(fileUri)
+    return await res.blob()
+  } catch {
+    const base64 = await FileSystem.readAsStringAsync(fileUri, {
+      encoding: FileSystem.EncodingType.Base64
+    })
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new Blob([bytes], { type: mimeType })
+  }
+}
+
 export async function analyzeImage(fileUri: string, fileName: string): Promise<ImageAnalysisResponse> {
+  const blob = await createBlobFromUri(fileUri, 'image/jpeg')
   const formData = new FormData()
-  formData.append('file', {
-    uri: fileUri,
-    name: fileName || 'photo.jpg',
-    type: 'image/jpeg'
-  } as any)
+  formData.append('file', blob, fileName || 'photo.jpg')
 
   const response = await fetch(`${API_HOST}/analyze/image`, {
     method: 'POST',
@@ -34,12 +49,9 @@ export async function analyzeImage(fileUri: string, fileName: string): Promise<I
 }
 
 export async function analyzeAudio(fileUri: string, fileName: string): Promise<AudioAnalysisResponse> {
+  const blob = await createBlobFromUri(fileUri, 'audio/wav')
   const formData = new FormData()
-  formData.append('file', {
-    uri: fileUri,
-    name: fileName || 'sound.wav',
-    type: 'audio/wav'
-  } as any)
+  formData.append('file', blob, fileName || 'sound.wav')
 
   const response = await fetch(`${API_HOST}/analyze/audio`, {
     method: 'POST',
@@ -63,17 +75,11 @@ export async function analyzeMultimodal(
   audioUri: string,
   audioName: string
 ): Promise<MultimodalAnalysisResponse> {
+  const imageBlob = await createBlobFromUri(imageUri, 'image/jpeg')
+  const audioBlob = await createBlobFromUri(audioUri, 'audio/wav')
   const formData = new FormData()
-  formData.append('image_file', {
-    uri: imageUri,
-    name: imageName || 'photo.jpg',
-    type: 'image/jpeg'
-  } as any)
-  formData.append('audio_file', {
-    uri: audioUri,
-    name: audioName || 'sound.wav',
-    type: 'audio/wav'
-  } as any)
+  formData.append('image_file', imageBlob, imageName || 'photo.jpg')
+  formData.append('audio_file', audioBlob, audioName || 'sound.wav')
 
   const response = await fetch(`${API_HOST}/analyze/multimodal`, {
     method: 'POST',

@@ -19,7 +19,6 @@ yarn-error.*
 .env
 .env.local
 .env.*.local
-!.env.example
 *.tsbuildinfo
 /ios
 /android

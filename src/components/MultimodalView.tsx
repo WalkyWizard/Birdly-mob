@@ -1,101 +1,22 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native'
-import * as ImagePicker from 'expo-image-picker'
-import * as DocumentPicker from 'expo-document-picker'
-import { analyzeMultimodal } from '../services/api'
-import type { MultimodalAnalysisResponse } from '../types'
+import { useMultimodalAnalysis } from '../hooks'
 import { BirdInfoCard } from './BirdInfoCard'
 
 export function MultimodalView() {
-  const [imageUri, setImageUri] = useState<string | null>(null)
-  const [imageName, setImageName] = useState<string | null>(null)
-  const [audioUri, setAudioUri] = useState<string | null>(null)
-  const [audioName, setAudioName] = useState<string | null>(null)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<MultimodalAnalysisResponse | null>(null)
-
-  async function handlePickImage() {
-    setError(null)
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
-    if (!permission.granted) {
-      setError('Необхідно надати дозвіл на доступ до галереї')
-      return
-    }
-
-    const pick = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.8
-    })
-
-    if (!pick.canceled && pick.assets && pick.assets.length > 0) {
-      const asset = pick.assets[0]
-      setImageUri(asset.uri)
-      setImageName(asset.fileName || 'photo.jpg')
-      setResult(null)
-    }
-  }
-
-  async function handlePickAudio() {
-    setError(null)
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['*/*'],
-        copyToCacheDirectory: true
-      })
-
-      if (!res.canceled && res.assets && res.assets.length > 0) {
-        const asset = res.assets[0]
-        setAudioUri(asset.uri)
-        setAudioName(asset.name || 'sound.wav')
-        setResult(null)
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка вибору аудіофайлу')
-      }
-    }
-  }
-
-  async function handleAnalyze() {
-    if (!imageUri || !audioUri) {
-      setError('Необхідно обрати обидва файли: фотографію та аудіозапис')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await analyzeMultimodal(
-        imageUri,
-        imageName || 'photo.jpg',
-        audioUri,
-        audioName || 'sound.wav'
-      )
-      setResult(data)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка виконання мультимодального аналізу')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleReset() {
-    setImageUri(null)
-    setImageName(null)
-    setAudioUri(null)
-    setAudioName(null)
-    setResult(null)
-    setError(null)
-  }
+  const {
+    imageUri,
+    imageName,
+    audioUri,
+    audioName,
+    loading,
+    error,
+    result,
+    pickImage,
+    pickAudio,
+    analyze,
+    reset
+  } = useMultimodalAnalysis()
 
   return (
     <View style={styles.container}>
@@ -104,7 +25,7 @@ export function MultimodalView() {
       <View style={styles.card}>
         <View style={styles.section}>
           <Text style={styles.label}>1. Фотографія птаха (JPG, PNG):</Text>
-          <TouchableOpacity style={styles.btnSecondary} onPress={handlePickImage} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={pickImage} activeOpacity={0.7}>
             <Text style={styles.btnSecondaryText}>{imageUri ? 'Змінити фото' : 'Обрати фотографію'}</Text>
           </TouchableOpacity>
           {imageUri ? (
@@ -117,7 +38,7 @@ export function MultimodalView() {
 
         <View style={styles.section}>
           <Text style={styles.label}>2. Аудіозапис співу (WAV, MP3, M4A, FLAC, OGG):</Text>
-          <TouchableOpacity style={styles.btnSecondary} onPress={handlePickAudio} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={pickAudio} activeOpacity={0.7}>
             <Text style={styles.btnSecondaryText}>{audioUri ? 'Змінити аудіо' : 'Обрати аудіофайл'}</Text>
           </TouchableOpacity>
           {audioUri ? (
@@ -132,7 +53,7 @@ export function MultimodalView() {
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.btnPrimary, (!imageUri || !audioUri || loading) && styles.btnDisabled]}
-            onPress={handleAnalyze}
+            onPress={analyze}
             disabled={!imageUri || !audioUri || loading}
             activeOpacity={0.7}
           >
@@ -144,7 +65,7 @@ export function MultimodalView() {
           </TouchableOpacity>
 
           {imageUri || audioUri ? (
-            <TouchableOpacity style={styles.btnSecondary} onPress={handleReset} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.btnSecondary} onPress={reset} activeOpacity={0.7}>
               <Text style={styles.btnSecondaryText}>Очистити</Text>
             </TouchableOpacity>
           ) : null}
@@ -218,78 +139,71 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 14,
+    padding: 16,
     gap: 12
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#24292f'
   },
   section: {
     gap: 6
   },
-  label: {
-    fontSize: 13,
-    color: '#57606a',
-    fontWeight: '500'
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 8
   },
   btnPrimary: {
-    flex: 1,
-    backgroundColor: '#0969da',
+    backgroundColor: '#1f883d',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1
+  },
+  btnPrimaryText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14
+  },
+  btnSecondary: {
+    backgroundColor: '#f6f8fa',
+    borderWidth: 1,
+    borderColor: '#d0d7de',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  btnPrimaryText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600'
-  },
-  btnSecondary: {
-    backgroundColor: '#f6f8fa',
-    borderWidth: 1,
-    borderColor: '#d0d7de',
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
   btnSecondaryText: {
     color: '#24292f',
-    fontSize: 14,
-    fontWeight: '500'
+    fontWeight: '500',
+    fontSize: 14
   },
   btnDisabled: {
     opacity: 0.5
   },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4
-  },
   previewBox: {
     alignItems: 'center',
-    backgroundColor: '#f6f8fa',
-    borderWidth: 1,
-    borderColor: '#d0d7de',
-    borderRadius: 6,
-    padding: 8
+    gap: 6,
+    marginTop: 6
   },
   previewImage: {
     width: '100%',
-    height: 150,
-    borderRadius: 4
+    height: 180,
+    borderRadius: 6,
+    backgroundColor: '#eaeef2'
   },
   audioBox: {
+    padding: 10,
     backgroundColor: '#f6f8fa',
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: '#d0d7de',
-    borderRadius: 6,
-    padding: 8
+    marginTop: 6
   },
   fileName: {
     fontSize: 12,
@@ -297,16 +211,13 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#cf222e',
-    fontSize: 13,
-    backgroundColor: '#ffebe9',
-    padding: 8,
-    borderRadius: 4
+    fontSize: 13
   },
   resultSection: {
-    gap: 14
+    gap: 12
   },
   verdictBox: {
-    padding: 10,
+    padding: 12,
     borderRadius: 6
   },
   verdictSuccess: {
@@ -325,42 +236,43 @@ const styles = StyleSheet.create({
     color: '#24292f'
   },
   noteBox: {
-    backgroundColor: '#f6f8fa',
-    borderWidth: 1,
-    borderColor: '#d0d7de',
-    padding: 10,
-    borderRadius: 6,
-    gap: 2
+    gap: 4
   },
   noteLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#57606a'
+    color: '#57606a',
+    fontWeight: '500'
   },
   noteText: {
     fontSize: 13,
     color: '#24292f'
   },
-  savedBadge: {
-    backgroundColor: '#dafbe1',
-    padding: 6,
-    borderRadius: 4,
-    alignItems: 'center'
-  },
-  savedText: {
-    color: '#1a7f37',
-    fontSize: 12,
-    fontWeight: '500'
-  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 2
+    alignItems: 'center'
+  },
+  label: {
+    fontSize: 13,
+    color: '#57606a'
   },
   valText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#24292f'
+  },
+  savedBadge: {
+    backgroundColor: '#dafbe1',
+    borderWidth: 1,
+    borderColor: '#4ac26b',
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start'
+  },
+  savedText: {
+    fontSize: 12,
+    color: '#1a7f37',
+    fontWeight: '500'
   }
 })

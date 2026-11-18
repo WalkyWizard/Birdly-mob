@@ -1,74 +1,19 @@
-﻿import React, { useState, useEffect } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, FlatList } from 'react-native'
-import { getHistory, deleteHistoryRecord, getBirdsMetadata } from '../services/api'
-import type { HistoryRecord, BirdsMetadata } from '../types'
+﻿import React from 'react'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
+import { useHistory } from '../hooks'
 
 export function HistoryView() {
-  const [records, setRecords] = useState<HistoryRecord[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState<string>('')
-  const [selectedFamily, setSelectedFamily] = useState<string>('Усі')
-  const [families, setFamilies] = useState<string[]>([])
-
-  useEffect(() => {
-    loadMetadata()
-    loadHistory()
-  }, [])
-
-  async function loadMetadata() {
-    try {
-      const meta: BirdsMetadata = await getBirdsMetadata()
-      setFamilies(['Усі', ...(meta.families || [])])
-    } catch {
-      setFamilies(['Усі'])
-    }
-  }
-
-  async function loadHistory(searchVal?: string, familyVal?: string) {
-    setLoading(true)
-    setError(null)
-    try {
-      const s = searchVal !== undefined ? searchVal : searchTerm
-      const f = familyVal !== undefined ? familyVal : selectedFamily
-      const data = await getHistory(s, f)
-      setRecords(data)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка завантаження історії')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleSearchSubmit() {
-    loadHistory(searchTerm, selectedFamily)
-  }
-
-  async function handleDelete(id: number) {
-    Alert.alert(
-      'Підтвердження',
-      `Ви дійсно бажаєте видалити запис ID ${id}?`,
-      [
-        { text: 'Скасувати', style: 'cancel' },
-        {
-          text: 'Видалити',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteHistoryRecord(id)
-              setRecords((prev) => prev.filter((r) => r.id !== id))
-            } catch (err: unknown) {
-              Alert.alert('Помилка', err instanceof Error ? err.message : 'Помилка видалення')
-            }
-          }
-        }
-      ]
-    )
-  }
+  const {
+    records,
+    loading,
+    error,
+    searchTerm,
+    selectedFamily,
+    setSearchTerm,
+    loadHistory,
+    search,
+    deleteRecord
+  } = useHistory()
 
   return (
     <View style={styles.container}>
@@ -82,9 +27,9 @@ export function HistoryView() {
             placeholderTextColor="#57606a"
             value={searchTerm}
             onChangeText={setSearchTerm}
-            onSubmitEditing={handleSearchSubmit}
+            onSubmitEditing={search}
           />
-          <TouchableOpacity style={styles.btnSecondary} onPress={handleSearchSubmit} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={search} activeOpacity={0.7}>
             <Text style={styles.btnSecondaryText}>Пошук</Text>
           </TouchableOpacity>
         </View>
@@ -136,7 +81,7 @@ export function HistoryView() {
               <View style={styles.recordFooter}>
                 <TouchableOpacity
                   style={styles.btnDanger}
-                  onPress={() => handleDelete(r.id)}
+                  onPress={() => deleteRecord(r.id)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.btnDangerText}>Видалити</Text>
@@ -164,8 +109,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 12,
-    gap: 10
+    padding: 16,
+    gap: 12
   },
   searchRow: {
     flexDirection: 'row',
@@ -173,13 +118,12 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    fontSize: 13,
+    fontSize: 14,
     color: '#24292f'
   },
   actionRow: {
@@ -191,55 +135,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center'
   },
   btnSecondaryText: {
     color: '#24292f',
-    fontSize: 13,
-    fontWeight: '500'
-  },
-  btnDanger: {
-    backgroundColor: '#cf222e',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    alignItems: 'center'
-  },
-  btnDangerText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '600'
+    fontWeight: '500',
+    fontSize: 13
   },
   errorText: {
     color: '#cf222e',
-    fontSize: 13,
-    backgroundColor: '#ffebe9',
-    padding: 8,
-    borderRadius: 4
+    fontSize: 13
   },
   loadingBox: {
-    alignItems: 'center',
     padding: 30,
-    gap: 8
+    alignItems: 'center',
+    gap: 10
   },
   loadingText: {
-    fontSize: 13,
-    color: '#57606a'
+    color: '#57606a',
+    fontSize: 13
   },
   emptyCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 24,
+    padding: 30,
     alignItems: 'center'
   },
   emptyText: {
-    fontSize: 14,
-    color: '#57606a'
+    color: '#57606a',
+    fontSize: 14
   },
   list: {
     gap: 10
@@ -249,8 +178,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 12,
-    gap: 8
+    padding: 14,
+    gap: 10
   },
   recordHeader: {
     flexDirection: 'row',
@@ -258,8 +187,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   typeBadge: {
-    paddingHorizontal: 6,
     paddingVertical: 2,
+    paddingHorizontal: 8,
     borderRadius: 4
   },
   typeImage: {
@@ -281,31 +210,45 @@ const styles = StyleSheet.create({
     color: '#57606a'
   },
   recordBody: {
-    gap: 2
+    gap: 4
   },
   recordSpecies: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#24292f'
+    fontWeight: '600',
+    color: '#0969da'
   },
   recordSci: {
     fontSize: 12,
-    fontStyle: 'italic',
-    color: '#57606a'
+    color: '#57606a',
+    fontStyle: 'italic'
   },
   recordFile: {
     fontSize: 12,
-    color: '#57606a',
-    marginTop: 2
+    color: '#57606a'
   },
   recordConf: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#0969da'
+    color: '#1a7f37',
+    fontWeight: '600'
   },
   recordFooter: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 4
+    borderTopWidth: 1,
+    borderTopColor: '#f0f2f5',
+    paddingTop: 8
+  },
+  btnDanger: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: '#ffebe9',
+    borderWidth: 1,
+    borderColor: '#ff8182'
+  },
+  btnDangerText: {
+    color: '#cf222e',
+    fontSize: 12,
+    fontWeight: '500'
   }
 })

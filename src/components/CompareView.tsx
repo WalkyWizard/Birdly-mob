@@ -1,74 +1,22 @@
-﻿import React, { useState, useEffect } from 'react'
+﻿import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, FlatList } from 'react-native'
-import { getBirdsMetadata, compareBirds } from '../services/api'
-import type { BirdsMetadata, CompareResponse, SpeciesOption } from '../types'
+import { useCompare } from '../hooks'
 
 export function CompareView() {
-  const [speciesList, setSpeciesList] = useState<SpeciesOption[]>([])
-  const [bird1, setBird1] = useState<string>('')
-  const [bird2, setBird2] = useState<string>('')
-  const [loading, setLoading] = useState<boolean>(false)
-  const [metaLoading, setMetaLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<CompareResponse | null>(null)
-  const [modalVisible, setModalVisible] = useState<boolean>(false)
-  const [selectingTarget, setSelectingTarget] = useState<'bird1' | 'bird2'>('bird1')
-
-  useEffect(() => {
-    async function init() {
-      try {
-        const data: BirdsMetadata = await getBirdsMetadata()
-        const list = data.species || []
-        setSpeciesList(list)
-        if (list.length >= 2) {
-          setBird1(list[0].key)
-          setBird2(list[1].key)
-        }
-      } catch {
-        setError('Помилка завантаження списку видів')
-      } finally {
-        setMetaLoading(false)
-      }
-    }
-    init()
-  }, [])
-
-  async function handleCompare() {
-    if (!bird1 || !bird2) {
-      setError('Оберіть двох птахів для порівняння')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await compareBirds(bird1, bird2)
-      setResult(data)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка порівняння видів')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function openSelect(target: 'bird1' | 'bird2') {
-    setSelectingTarget(target)
-    setModalVisible(true)
-  }
-
-  function handleSelectSpecies(key: string) {
-    if (selectingTarget === 'bird1') {
-      setBird1(key)
-    } else {
-      setBird2(key)
-    }
-    setModalVisible(false)
-  }
+  const {
+    speciesList,
+    bird1,
+    bird2,
+    loading,
+    metaLoading,
+    error,
+    result,
+    modalVisible,
+    compare,
+    openSelect,
+    closeSelect,
+    selectSpecies
+  } = useCompare()
 
   const bird1Obj = speciesList.find((s) => s.key === bird1)
   const bird2Obj = speciesList.find((s) => s.key === bird2)
@@ -102,7 +50,7 @@ export function CompareView() {
 
             <TouchableOpacity
               style={[styles.btnPrimary, (loading || !bird1 || !bird2) && styles.btnDisabled]}
-              onPress={handleCompare}
+              onPress={compare}
               disabled={loading || !bird1 || !bird2}
               activeOpacity={0.7}
             >
@@ -146,7 +94,7 @@ export function CompareView() {
           <View style={styles.modalBox}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Оберіть вид птаха</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)} activeOpacity={0.7}>
+              <TouchableOpacity onPress={closeSelect} activeOpacity={0.7}>
                 <Text style={styles.closeBtn}>Закрити</Text>
               </TouchableOpacity>
             </View>
@@ -156,11 +104,11 @@ export function CompareView() {
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.modalItem}
-                  onPress={() => handleSelectSpecies(item.key)}
+                  onPress={() => selectSpecies(item.key)}
                   activeOpacity={0.6}
                 >
-                  <Text style={styles.itemUkr}>{item.ukr_name}</Text>
-                  <Text style={styles.itemSci}>{item.scientific_name}</Text>
+                  <Text style={styles.itemTitle}>{item.ukr_name}</Text>
+                  <Text style={styles.itemSub}>{item.scientific_name}</Text>
                 </TouchableOpacity>
               )}
             />
@@ -185,18 +133,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 14,
+    padding: 16,
     gap: 12
   },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#24292f',
-    flex: 1
-  },
   infoText: {
-    fontSize: 13,
-    color: '#57606a'
+    fontSize: 14,
+    color: '#57606a',
+    textAlign: 'center',
+    paddingVertical: 12
   },
   selectorGroup: {
     gap: 10
@@ -206,23 +150,22 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 13,
-    color: '#57606a',
-    fontWeight: '500'
+    color: '#57606a'
   },
   selectorBtn: {
-    backgroundColor: '#f6f8fa',
     borderWidth: 1,
     borderColor: '#d0d7de',
+    backgroundColor: '#f6f8fa',
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 6
   },
   selectorBtnText: {
-    color: '#24292f',
-    fontSize: 13
+    fontSize: 14,
+    color: '#24292f'
   },
   btnPrimary: {
-    backgroundColor: '#0969da',
+    backgroundColor: '#1f883d',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,
@@ -232,18 +175,15 @@ const styles = StyleSheet.create({
   },
   btnPrimaryText: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600'
+    fontWeight: '600',
+    fontSize: 14
   },
   btnDisabled: {
     opacity: 0.5
   },
   errorText: {
     color: '#cf222e',
-    fontSize: 13,
-    backgroundColor: '#ffebe9',
-    padding: 8,
-    borderRadius: 4
+    fontSize: 13
   },
   resultHeader: {
     flexDirection: 'row',
@@ -251,16 +191,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8
   },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#24292f',
+    flex: 1
+  },
   badge: {
+    paddingVertical: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
     borderRadius: 4
   },
   badgeSuccess: {
-    backgroundColor: '#dafbe1'
+    backgroundColor: '#dafbe1',
+    borderWidth: 1,
+    borderColor: '#4ac26b'
   },
   badgeWarning: {
-    backgroundColor: '#fff8c5'
+    backgroundColor: '#fff8c5',
+    borderWidth: 1,
+    borderColor: '#d4a72c'
   },
   badgeText: {
     fontSize: 11,
@@ -268,20 +218,23 @@ const styles = StyleSheet.create({
     color: '#24292f'
   },
   table: {
-    gap: 8
+    borderWidth: 1,
+    borderColor: '#d0d7de',
+    borderRadius: 6,
+    overflow: 'hidden'
   },
   tableRow: {
-    padding: 8,
-    borderRadius: 4,
-    backgroundColor: '#f6f8fa',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f5',
     gap: 4
   },
   rowMatch: {
-    backgroundColor: '#dafbe1'
+    backgroundColor: '#f6f8fa'
   },
   paramLabel: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#57606a'
   },
   paramValues: {
@@ -291,12 +244,12 @@ const styles = StyleSheet.create({
   val1: {
     flex: 1,
     fontSize: 13,
-    color: '#24292f'
+    color: '#0969da'
   },
   val2: {
     flex: 1,
     fontSize: 13,
-    color: '#24292f'
+    color: '#1a7f37'
   },
   modalOverlay: {
     flex: 1,
@@ -305,9 +258,9 @@ const styles = StyleSheet.create({
   },
   modalBox: {
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    maxHeight: '75%',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '80%',
     padding: 16
   },
   modalHeader: {
@@ -316,12 +269,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#d0d7de',
-    marginBottom: 8
+    borderBottomColor: '#d0d7de'
   },
   modalTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#24292f'
   },
   closeBtn: {
@@ -330,18 +282,18 @@ const styles = StyleSheet.create({
     fontWeight: '600'
   },
   modalItem: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f6f8fa'
+    borderBottomColor: '#f0f2f5'
   },
-  itemUkr: {
+  itemTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#24292f'
   },
-  itemSci: {
+  itemSub: {
     fontSize: 12,
-    fontStyle: 'italic',
-    color: '#57606a'
+    color: '#57606a',
+    marginTop: 2
   }
 })

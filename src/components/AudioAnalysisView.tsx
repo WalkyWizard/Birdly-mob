@@ -1,76 +1,26 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native'
-import * as DocumentPicker from 'expo-document-picker'
-import { analyzeAudio } from '../services/api'
-import type { AudioAnalysisResponse } from '../types'
+import { useAudioAnalysis } from '../hooks'
 import { BirdInfoCard } from './BirdInfoCard'
 
 export function AudioAnalysisView() {
-  const [audioUri, setAudioUri] = useState<string | null>(null)
-  const [audioName, setAudioName] = useState<string | null>(null)
-  const [loading, setLoading] = useState<boolean>(false)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<AudioAnalysisResponse | null>(null)
-
-  async function handlePickAudio() {
-    setError(null)
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['*/*'],
-        copyToCacheDirectory: true
-      })
-
-      if (!res.canceled && res.assets && res.assets.length > 0) {
-        const asset = res.assets[0]
-        setAudioUri(asset.uri)
-        setAudioName(asset.name || 'sound.wav')
-        setResult(null)
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка вибору аудіофайлу')
-      }
-    }
-  }
-
-  async function handleAnalyze() {
-    if (!audioUri) {
-      setError('Будь ласка, оберіть аудіофайл')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const data = await analyzeAudio(audioUri, audioName || 'sound.wav')
-      setResult(data)
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message)
-      } else {
-        setError('Помилка під час аналізу аудіо')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function handleReset() {
-    setAudioUri(null)
-    setAudioName(null)
-    setResult(null)
-    setError(null)
-  }
+  const {
+    audioUri,
+    audioName,
+    loading,
+    error,
+    result,
+    pickAudio,
+    analyze,
+    reset
+  } = useAudioAnalysis()
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Аудіоаналіз</Text>
 
       <View style={styles.card}>
-        <TouchableOpacity style={styles.btnSecondary} onPress={handlePickAudio} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.btnSecondary} onPress={pickAudio} activeOpacity={0.7}>
           <Text style={styles.btnSecondaryText}>Обрати аудіофайл</Text>
         </TouchableOpacity>
 
@@ -86,7 +36,7 @@ export function AudioAnalysisView() {
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.btnPrimary, (!audioUri || loading) && styles.btnDisabled]}
-            onPress={handleAnalyze}
+            onPress={analyze}
             disabled={!audioUri || loading}
             activeOpacity={0.7}
           >
@@ -98,7 +48,7 @@ export function AudioAnalysisView() {
           </TouchableOpacity>
 
           {audioUri ? (
-            <TouchableOpacity style={styles.btnSecondary} onPress={handleReset} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.btnSecondary} onPress={reset} activeOpacity={0.7}>
               <Text style={styles.btnSecondaryText}>Очистити</Text>
             </TouchableOpacity>
           ) : null}
@@ -164,11 +114,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d0d7de',
     borderRadius: 6,
-    padding: 14,
+    padding: 16,
     gap: 12
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: '#24292f'
   },
@@ -177,83 +127,75 @@ const styles = StyleSheet.create({
     gap: 8
   },
   btnPrimary: {
-    flex: 1,
-    backgroundColor: '#0969da',
+    backgroundColor: '#1f883d',
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    flex: 1
   },
   btnPrimaryText: {
     color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600'
+    fontWeight: '600',
+    fontSize: 14
   },
   btnSecondary: {
     backgroundColor: '#f6f8fa',
     borderWidth: 1,
     borderColor: '#d0d7de',
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center'
   },
   btnSecondaryText: {
     color: '#24292f',
-    fontSize: 14,
-    fontWeight: '500'
+    fontWeight: '500',
+    fontSize: 14
   },
   btnDisabled: {
     opacity: 0.5
   },
   audioInfo: {
-    backgroundColor: '#f6f8fa',
-    borderWidth: 1,
-    borderColor: '#d0d7de',
-    borderRadius: 6,
-    padding: 10,
-    gap: 2
+    gap: 4
+  },
+  label: {
+    fontSize: 13,
+    color: '#57606a'
   },
   fileName: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#24292f',
     fontWeight: '500'
   },
   errorText: {
     color: '#cf222e',
-    fontSize: 13,
-    backgroundColor: '#ffebe9',
-    padding: 8,
-    borderRadius: 4
+    fontSize: 13
   },
   resultSection: {
-    gap: 14
+    gap: 12
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  label: {
-    fontSize: 13,
-    color: '#57606a'
-  },
   speciesText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#24292f'
+    color: '#0969da'
   },
   confidenceText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#0969da'
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a7f37'
   },
   statusBox: {
     padding: 10,
     borderRadius: 6,
-    gap: 2
+    gap: 4
   },
   statusSuccess: {
     backgroundColor: '#dafbe1',
@@ -276,24 +218,30 @@ const styles = StyleSheet.create({
   },
   savedBadge: {
     backgroundColor: '#dafbe1',
-    padding: 6,
+    borderWidth: 1,
+    borderColor: '#4ac26b',
     borderRadius: 4,
-    alignItems: 'center'
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start'
   },
   savedText: {
-    color: '#1a7f37',
     fontSize: 12,
+    color: '#1a7f37',
     fontWeight: '500'
   },
   variantRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f2f5'
   },
   variantIdx: {
     width: 24,
-    fontSize: 13,
-    color: '#57606a'
+    fontSize: 12,
+    color: '#57606a',
+    fontWeight: '600'
   },
   variantSpecies: {
     flex: 1,
@@ -301,8 +249,8 @@ const styles = StyleSheet.create({
     color: '#24292f'
   },
   variantConf: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#24292f'
+    fontSize: 12,
+    color: '#1a7f37',
+    fontWeight: '600'
   }
 })
